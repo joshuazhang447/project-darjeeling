@@ -94,24 +94,26 @@ const Setup = ({ onComplete }) => {
                                 {/* Helper for CheckItem */}
                                 <CheckItem
                                     icon="fa-star"
-                                    colorClass="text-[#26a69a]"
-                                    bgClass="bg-[#e0f2f1]"
+                                    colorClass="text-[#4A5D4E]" // Muted Evergreen
+                                    bgClass="bg-[#EDF2EC]"      // Soft Tea Wash
                                     name="/New"
                                     exists={checks.New}
                                     desc="Drop your newly downloaded songs."
                                 />
+
                                 <CheckItem
                                     icon="fa-book"
-                                    colorClass="text-[#7cb342]"
-                                    bgClass="bg-[#f1f8e9]"
+                                    colorClass="text-[#4A5D4E]"
+                                    bgClass="bg-[#EDF2EC]"
                                     name="/Library"
                                     exists={checks.Library}
                                     desc={<>Where your organized music tracks live.<br />(Should be configure with SoulSeek/Nicotine+).</>}
                                 />
+
                                 <CheckItem
                                     icon="fa-database"
-                                    colorClass="text-[#78909c]"
-                                    bgClass="bg-[#eceff1]"
+                                    colorClass="text-[#4A5D4E]"
+                                    bgClass="bg-[#EDF2EC]"
                                     name="/Backups"
                                     exists={checks.Backups}
                                     desc="Stores restore points & JSONs."
@@ -147,7 +149,7 @@ const CheckItem = ({ icon, colorClass, bgClass, name, exists, desc }) => (
         <div className="flex-1">
             <div className="flex justify-between items-center">
                 <span className="font-bold text-sm text-[#5c4b37]">{name}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${exists ? 'bg-[#f1f8e9] text-[#7cb342]' : 'bg-[#e0f2f1] text-[#26a69a]'}`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${exists ? 'bg-[#f1f8e9] text-[#7cb342]' : 'bg-[#EDF2EC] text-[#4A5D4E]'}`}>
                     {exists ? 'Exists' : 'Created'}
                 </span>
             </div>
