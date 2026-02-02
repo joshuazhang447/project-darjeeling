@@ -1,3 +1,49 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    body {
+        font-family: 'Nunito', sans-serif;
+        background-color: #f0f3e6;
+        color: #5c4b37;
+        background-image: radial-gradient(#d4cdb6 2px, transparent 2px);
+        background-size: 24px 24px;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+    }
+}
+
+.drag-region {
+    app-region: drag;
+}
+
+.no-drag {
+    app-region: no-drag;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d4cdb6;
+    border-radius: 4px;
+}
+
+.dashed-border {
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%23C0B6A1' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+}
+
+.bg-icon {
+    position: absolute;
+    opacity: 0.15;
+    z-index: -1;
+    pointer-events: none;
+}
