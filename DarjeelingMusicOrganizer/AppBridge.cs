@@ -13,6 +13,34 @@ namespace DarjeelingMusicOrganizer
     {
         private const string SettingsFileName = "darjeeling_settings.json";
 
+        public void MinimizeWindow()
+        {
+            if (Form.ActiveForm != null)
+            {
+                Form.ActiveForm.WindowState = FormWindowState.Minimized;
+            }
+        }
+
+        public void CloseWindow()
+        {
+            Application.Exit();
+        }
+
+        public void DragWindow()
+        {
+            if (Form.ActiveForm != null)
+            {
+                ReleaseCapture();
+                //WM_NCLBUTTONDOWN, HT_CAPTION
+                SendMessage(Form.ActiveForm.Handle, 0xA1, 0x2, 0); 
+            }
+        }
+
+        [DllImport("user32.dll")]
+        public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+        [DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
+
         public string GetSettings()
         {
             try

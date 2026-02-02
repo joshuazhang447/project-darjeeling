@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 namespace DarjeelingMusicOrganizer
 {
@@ -17,8 +18,35 @@ namespace DarjeelingMusicOrganizer
         public MainForm()
         {
             InitializeComponent();
+            this.FormBorderStyle = FormBorderStyle.None;
+            
+            // Enable rounded corners (Windows 11)
+            var attribute = DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE;
+            var preference = DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_ROUND;
+            try {
+                // Cast enum to int explicitly for the ref parameter
+                int intPreference = (int)preference;
+                DwmSetWindowAttribute(this.Handle, attribute, ref intPreference, sizeof(int));
+            } catch {}
+
             _ = InitializeWebViewAsync();
         }
+
+        public enum DWMWINDOWATTRIBUTE
+        {
+            DWMWA_WINDOW_CORNER_PREFERENCE = 33
+        }
+
+        public enum DWM_WINDOW_CORNER_PREFERENCE
+        {
+            DWMWCP_DEFAULT = 0,
+            DWMWCP_DONOTROUND = 1,
+            DWMWCP_ROUND = 2,
+            DWMWCP_ROUNDSMALL = 3
+        }
+
+        [DllImport("dwmapi.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+        internal static extern void DwmSetWindowAttribute(IntPtr hwnd, DWMWINDOWATTRIBUTE attribute, ref int pvAttribute, int cbAttribute);
 
         private async Task InitializeWebViewAsync()
         {
