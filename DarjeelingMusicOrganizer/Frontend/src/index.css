@@ -25,6 +25,14 @@
     app-region: no-drag;
 }
 
+/* Floating Background Decorations */
+.bg-icon {
+    position: absolute;
+    opacity: 0.15;
+    z-index: -1;
+    pointer-events: none;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;
