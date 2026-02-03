@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Setup from './components/Setup';
-import Play from './components/Play';
+import Display from './components/Display';
 import Loading from './components/Loading';
 import TopBar from './components/TopBar';
 
@@ -51,7 +51,7 @@ function App() {
   return (
     <>
       <TopBar />
-      {configured ? <Play /> : <Setup onComplete={() => setConfigured(true)} />}
+      {configured ? <Display /> : <Setup onComplete={() => setConfigured(true)} />}
     </>
   );
 }
