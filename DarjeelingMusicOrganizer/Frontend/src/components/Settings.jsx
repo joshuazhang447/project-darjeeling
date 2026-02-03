@@ -156,7 +156,7 @@ const Settings = ({ onSaveSuccess }) => {
                     className={`w-full text-left px-4 py-3 rounded-2xl font-bold flex items-center gap-3 transition ${activeSection === 'misc' ? 'bg-white shadow-sm border-l-4 border-[#eebb4d] text-[#5c4b37]' : 'text-[#9c8b77] hover:bg-[#e8e3d3]'}`}
                 >
                     <i className={`fa-solid fa-wrench ${activeSection === 'misc' ? 'text-[#eebb4d]' : ''}`}></i>
-                    Misc
+                    Miscellaneous
                 </button>
             </aside>
 
