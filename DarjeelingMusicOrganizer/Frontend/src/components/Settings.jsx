@@ -8,8 +8,12 @@ const Settings = ({ onSaveSuccess }) => {
         AiProvider: 'Google',
         ApiKey: '',
         ApiEndpoint: PROVIDERS.Google.defaultEndpoint,
+        ApiEndpoint: PROVIDERS.Google.defaultEndpoint,
         ModelVersion: PROVIDERS.Google.models[0].value
     };
+
+    const [folderStats, setFolderStats] = useState(null);
+
 
     //Initial the defaults settings
     const [settings, setSettings] = useState(settingsDefaults);
@@ -24,28 +28,84 @@ const Settings = ({ onSaveSuccess }) => {
             if (window.chrome?.webview?.hostObjects?.appBridge) {
                 try {
                     const savedSettingsJson = await window.chrome.webview.hostObjects.appBridge.GetSettings();
+                    console.log("[Settings] Loaded JSON:", savedSettingsJson);
+
                     if (savedSettingsJson) {
                         const saved = JSON.parse(savedSettingsJson);
+                        console.log("[Settings] Parsed:", saved);
 
-                        //Forcing Google, since all others are disabled
-                        const currentProvider = 'Google';
+                        // Defaults
                         const providerDefaults = PROVIDERS.Google;
+                        const defaultEndpoint = providerDefaults.defaultEndpoint;
+                        const defaultModel = providerDefaults.models[0].value;
+
+                        // Robust Mapping (Handle PascalCase from C# or camelCase potential)
+                        // This explicitly looks for the keys we expect
+                        const loadedSettings = {
+                            AiProvider: saved.AiProvider || saved.aiProvider || 'Google',
+                            ApiKey: saved.ApiKey || saved.apiKey || '',
+                            ApiEndpoint: saved.ApiEndpoint || saved.apiEndpoint || defaultEndpoint,
+                            ModelVersion: saved.ModelVersion || saved.modelVersion || defaultModel
+                        };
 
                         setSettings(prev => ({
                             ...prev,
-                            ...saved,
-                            //Ensure defaults if backend returned null/empty for these critical fields
-                            ApiEndpoint: saved.ApiEndpoint || providerDefaults.defaultEndpoint,
-                            ModelVersion: saved.ModelVersion || providerDefaults.models[0].value
+                            ...loadedSettings
                         }));
                     }
                 } catch (e) {
-                    console.error("Failed to load settings", e);
+                    console.error("[Settings] Failed to load settings", e);
                 }
             }
         };
         loadSettings();
     }, []);
+
+    //Load Folder Stats when section changes to 'folders'
+    useEffect(() => {
+        if (activeSection === 'folders' && window.chrome?.webview?.hostObjects?.appBridge) {
+            const loadStats = async () => {
+                try {
+                    const statsJson = await window.chrome.webview.hostObjects.appBridge.GetCollectionStats();
+                    const stats = JSON.parse(statsJson);
+                    setFolderStats(stats);
+                } catch (e) {
+                    console.error("Failed to load stats", e);
+                }
+            };
+            loadStats();
+        } else if (activeSection === 'folders' && !window.chrome?.webview?.hostObjects?.appBridge) {
+            //Collection Folder Stats Mock
+            setFolderStats({
+                RootPath: "C:/Users/Dev/Music/Collection",
+                RootSize: "42.8 GB",
+                RootFiles: "4,203",
+                NewSize: "142 MB",
+                LibrarySize: "40.5 GB",
+                BackupsSize: "2.1 GB"
+            });
+        }
+    }, [activeSection]);
+
+    const refreshStats = async () => {
+        if (window.chrome?.webview?.hostObjects?.appBridge) {
+            try {
+                const statsJson = await window.chrome.webview.hostObjects.appBridge.GetCollectionStats();
+                setFolderStats(JSON.parse(statsJson));
+            } catch (e) {
+                console.error("Refresh failed", e);
+            }
+        }
+    };
+
+    const openInExplorer = async (path) => {
+        if (!path) return;
+        if (window.chrome?.webview?.hostObjects?.appBridge) {
+            await window.chrome.webview.hostObjects.appBridge.OpenInExplorer(path);
+        } else {
+            console.log("Mock Open Explorer:", path);
+        }
+    };
 
     //Force lowercases for all internal logic
     const updateSetting = (key, value) => {
@@ -121,9 +181,27 @@ const Settings = ({ onSaveSuccess }) => {
                 console.error("Save failed", e);
             }
         }
+
+    };
+
+    const handleResetCollection = async () => {
+        if (window.confirm("Are you sure you want to unlink your collection? You'll need to run setup again.")) {
+            if (window.chrome?.webview?.hostObjects?.appBridge) {
+                try {
+                    await window.chrome.webview.hostObjects.appBridge.ResetCollection();
+                    window.location.reload();
+                } catch (e) {
+                    console.error("Reset failed", e);
+                }
+            } else {
+                console.log("Mock Reset");
+                window.location.reload();
+            }
+        }
     };
 
     const currentProviderConfig = PROVIDERS[settings.AiProvider] || PROVIDERS.Google;
+
     //Helpers to get Icon dynamically
     const ProviderIconConfig = currentProviderConfig.icon;
     const ProviderIcon = ProviderIconConfig.Color || ProviderIconConfig;
@@ -344,7 +422,166 @@ const Settings = ({ onSaveSuccess }) => {
                             </>
                         )}
 
-                        {activeSection !== 'model' && (
+                        {activeSection === 'folders' && (
+                            <>
+                                {/*Collection Folder */}
+                                <section>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <label className="text-sm font-extrabold text-[#5c4b37] uppercase tracking-wide">Root Directory</label>
+                                            <button
+                                                onClick={refreshStats}
+                                                className="text-xs font-bold text-[#9c8b77] hover:text-[#eebb4d] transition flex items-center gap-1 bg-white border border-[#e8e3d3] px-2 py-1 rounded-lg shadow-sm active:translate-y-[1px]"
+                                                title="Refresh Stats"
+                                            >
+                                                <i className="fa-solid fa-rotate-right"></i>
+                                                <span>Refresh</span>
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={() => openInExplorer(folderStats?.RootPath)}
+                                            className="text-xs font-bold text-[#9c8b77] hover:text-[#eebb4d] transition flex items-center gap-1"
+                                        >
+                                            <span>Open in Explorer</span>
+                                            <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                        </button>
+                                    </div>
+
+                                    {/*Collection Folder Box */}
+                                    <div className="bg-[#f9f7f0] border-4 border-[#e8e3d3] rounded-3xl p-6 relative group transition-all hover:border-[#d4cdb6]">
+                                        {/* Decorative Tag */}
+                                        <div className="absolute -top-3 left-6 bg-[#5c4b37] text-[#fffefb] text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                                            <i className="fa-solid fa-hard-drive mr-1"></i> Main Collection
+                                        </div>
+
+                                        <div className="flex items-start gap-5 pt-2">
+                                            {/*Collection Folder Icon */}
+                                            <div className="w-20 h-20 bg-[#eebb4d] rounded-2xl flex items-center justify-center text-white shadow-sm shrink-0 transform rotate-[-3deg] group-hover:rotate-0 transition-transform">
+                                                <i className="fa-solid fa-box-archive text-4xl"></i>
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                {/*Path */}
+                                                <div className="font-bold text-[#9c8b77] text-xs uppercase tracking-wider mb-1">Current Location</div>
+                                                <div className="font-mono text-sm bg-white border-2 border-[#e8e3d3] rounded-lg px-3 py-2 text-[#5c4b37] truncate mb-3 shadow-sm">
+                                                    {folderStats?.RootPath || "Loading..."}
+                                                </div>
+
+                                                {/* Stats Bar */}
+                                                <div className="flex gap-4">
+                                                    <div className="bg-white px-3 py-1 rounded-lg border border-[#e8e3d3] shadow-sm flex items-center gap-2">
+                                                        <i className="fa-solid fa-weight-hanging text-[#9c8b77] text-xs"></i>
+                                                        <span className="font-bold text-sm text-[#5c4b37]">{folderStats?.RootSize || "..."}</span>
+                                                    </div>
+                                                    <div className="bg-white px-3 py-1 rounded-lg border border-[#e8e3d3] shadow-sm flex items-center gap-2">
+                                                        <i className="fa-solid fa-music text-[#9c8b77] text-xs"></i>
+                                                        <span className="font-bold text-sm text-[#5c4b37]">{folderStats?.RootFiles || "..."} Files</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/*SubFolders Structure */}
+                                <section className="relative pl-10">
+                                    {/*Connecting Line */}
+                                    <div className="absolute left-10 top-[-20px] bottom-10 w-1 border-l-4 border-dotted border-[#e8e3d3]"></div>
+
+                                    <label className="block text-sm font-extrabold text-[#5c4b37] uppercase tracking-wide mb-4 relative z-10 bg-[#fffefb] inline-block pr-2">
+                                        Sub-Folders
+                                    </label>
+
+                                    <div className="space-y-4">
+
+                                        {/*New Folder */}
+                                        <div className="relative">
+                                            <div className="absolute -left-10 top-8 w-8 border-t-4 border-dotted border-[#e8e3d3]"></div>
+                                            <div className="bg-white border-2 border-[#f0f3e6] rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition">
+                                                <div className="w-12 h-12 bg-[#EDF2EC] text-[#4A5D4E] rounded-xl flex items-center justify-center text-xl shrink-0">
+                                                    <i className="fa-solid fa-star"></i>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-[#5c4b37] text-lg">/New</div>
+                                                    <div className="text-xs text-[#9c8b77] font-semibold">Drop your newly downloaded songs.</div>
+                                                </div>
+                                                <div className="bg-[#f9f7f0] px-3 py-1 rounded-lg border border-[#e8e3d3] font-bold text-sm text-[#5c4b37]">
+                                                    {folderStats?.NewSize || "..."}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/*Library Folder */}
+                                        <div className="relative">
+                                            <div className="absolute -left-10 top-8 w-8 border-t-4 border-dotted border-[#e8e3d3]"></div>
+                                            <div className="bg-white border-2 border-[#f0f3e6] rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition">
+                                                <div className="w-12 h-12 bg-[#EDF2EC] text-[#4A5D4E] rounded-xl flex items-center justify-center text-xl shrink-0">
+                                                    <i className="fa-solid fa-book"></i>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-[#5c4b37] text-lg">/Library</div>
+                                                    <div className="text-xs text-[#9c8b77] font-semibold">
+                                                        Where your organized music tracks live.<br />
+                                                        <span className="opacity-80 font-medium">(Should be configured with SoulSeek/Nicotine+)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-[#f9f7f0] px-3 py-1 rounded-lg border border-[#e8e3d3] font-bold text-sm text-[#5c4b37]">
+                                                    {folderStats?.LibrarySize || "..."}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/*Backups Folder */}
+                                        <div className="relative">
+                                            <div className="absolute -left-10 top-8 w-8 border-t-4 border-dotted border-[#e8e3d3]"></div>
+                                            <div className="bg-white border-2 border-[#f0f3e6] rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition">
+                                                <div className="w-12 h-12 bg-[#EDF2EC] text-[#4A5D4E] rounded-xl flex items-center justify-center text-xl shrink-0">
+                                                    <i className="fa-solid fa-database"></i>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-[#5c4b37] text-lg">/Backups</div>
+                                                    <div className="text-xs text-[#9c8b77] font-semibold">Stores restore points & JSONs.</div>
+                                                </div>
+                                                <div className="bg-[#f9f7f0] px-3 py-1 rounded-lg border border-[#e8e3d3] font-bold text-sm text-[#5c4b37]">
+                                                    {folderStats?.BackupsSize || "..."}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </section>
+
+                                <hr className="border-t-2 border-dotted border-[#e8e3d3]" />
+
+                                {/* Reset */}
+                                <section className="pt-2">
+                                    <div className="dashed-border bg-[#fff5f5] rounded-3xl p-6 border border-[#ffcdd2] relative overflow-hidden group">
+                                        <div className="absolute top-0 left-0 w-full h-full opacity-50 bg-[repeating-linear-gradient(45deg,#ffebee,#ffebee_10px,transparent_10px,transparent_20px)] pointer-events-none"></div>
+
+                                        <div className="flex items-center justify-between gap-6 relative z-10">
+                                            <div>
+                                                <h3 className="font-bold text-[#c62828] text-lg flex items-center gap-2">
+                                                    <i className="fa-solid fa-triangle-exclamation"></i> Reset Collection
+                                                </h3>
+                                                <p className="text-xs text-[#b71c1c] opacity-80 mt-1 max-w-sm leading-relaxed font-semibold">
+                                                    This will unlink the current root folder. Your music files will <span className="underline">not</span> be deleted, but you will need to run the setup again to select another location.
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                onClick={handleResetCollection}
+                                                className="ac-btn bg-[#ef5350] hover:bg-[#e53935] text-white px-6 py-4 rounded-xl font-extrabold shadow-[0_4px_0_#b71c1c] hover:shadow-[0_2px_0_#b71c1c] hover:translate-y-[2px] active:shadow-none transition-all flex items-center gap-3 shrink-0"
+                                            >
+                                                <i className="fa-solid fa-unlink"></i>
+                                                <span>Reset & Unlink</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </section>
+                            </>
+                        )}
+
+                        {activeSection === 'misc' && (
                             <div className="flex items-center justify-center h-48 border-2 border-dashed border-[#e8e3d3] rounded-2xl">
                                 <span className="text-[#9c8b77] font-bold">This section is not implemented yet.</span>
                             </div>
