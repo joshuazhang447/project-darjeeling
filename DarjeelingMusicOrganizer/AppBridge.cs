@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using System.Text.Json;
+using System.Linq;
 
 namespace DarjeelingMusicOrganizer
 {
@@ -66,13 +67,13 @@ namespace DarjeelingMusicOrganizer
                             settings.ApiKey = DecryptString(settings.ApiKey);
                         }
 
-                        //Validate the Collection Path
-                        if (!string.IsNullOrWhiteSpace(settings.CollectionPath) && Directory.Exists(settings.CollectionPath))
-                        {
-                            return JsonSerializer.Serialize(settings);
-                        }
-                        
-                        return JsonSerializer.Serialize(settings);
+                            //Validate the Collection Path
+                            if (!string.IsNullOrWhiteSpace(settings.CollectionPath) && Directory.Exists(settings.CollectionPath))
+                            {
+                                return JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                            }
+                            
+                            return JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
                     }
                     catch 
                     {
@@ -257,7 +258,7 @@ namespace DarjeelingMusicOrganizer
             catch { return ""; } 
         }
 
-        private class SettingsModel
+        public class SettingsModel
         {
             public string CollectionPath { get; set; }
             public DateTime? InitializedAt { get; set; }
@@ -355,6 +356,128 @@ namespace DarjeelingMusicOrganizer
             };
 
             File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings));
+        }
+
+        public string GetCollectionStats()
+        {
+            try
+            {
+                var settingsJson = GetSettings();
+                if (string.IsNullOrEmpty(settingsJson)) return "{}";
+
+                var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                string rootPath = settings?.CollectionPath;
+
+                if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath))
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        RootPath = "Not Configured",
+                        RootSize = "0 B",
+                        RootFiles = "0",
+                        NewSize = "0 B",
+                        LibrarySize = "0 B",
+                        BackupsSize = "0 B"
+                    });
+                }
+
+                //Calculate Root Stats
+                long rootBytes = GetDirectorySize(rootPath);
+                int rootCount = GetFileCount(rootPath);
+
+                //Calculate Subfolders
+                long newBytes = GetDirectorySize(Path.Combine(rootPath, "New"));
+                long libBytes = GetDirectorySize(Path.Combine(rootPath, "Library"));
+                long backBytes = GetDirectorySize(Path.Combine(rootPath, "Backups"));
+
+                var result = new
+                {
+                    RootPath = rootPath.Replace("\\", "/"),
+                    RootSize = FormatBytes(rootBytes),
+                    RootFiles = rootCount.ToString("N0"),
+                    NewSize = FormatBytes(newBytes),
+                    LibrarySize = FormatBytes(libBytes),
+                    BackupsSize = FormatBytes(backBytes)
+                };
+
+                return JsonSerializer.Serialize(result);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Stats Error: " + ex.Message);
+                return "{}";
+            }
+        }
+
+        public void ResetCollection()
+        {
+            try
+            {
+                string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DarjeelingMusicOrganizer");
+                string settingsPath = Path.Combine(appDataPath, SettingsFileName);
+
+                if (File.Exists(settingsPath))
+                {
+                    File.Delete(settingsPath);
+                }
+            }
+            catch { }
+        }
+
+        private long GetDirectorySize(string folderPath)
+        {
+            if (!Directory.Exists(folderPath)) return 0;
+            try
+            {
+                return new DirectoryInfo(folderPath).EnumerateFiles("*", SearchOption.AllDirectories).Sum(fi => fi.Length);
+            }
+            catch { return 0; }
+        }
+
+        private int GetFileCount(string folderPath)
+        {
+            if (!Directory.Exists(folderPath)) return 0;
+            try
+            {
+                return Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories).Length;
+            }
+            catch { return 0; }
+        }
+
+        private string FormatBytes(long bytes)
+        {
+            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+            int counter = 0;
+            decimal number = (decimal)bytes;
+            while (Math.Round(number / 1024) >= 1)
+            {
+                number = number / 1024;
+                counter++;
+            }
+            // Use one decimal place if GB or higher otherwise 0
+            string format = counter >= 3 ? "0.0" : "0"; 
+            //Bytes do not have decimals
+            if (counter == 0) format = "0";
+
+            return string.Format("{0:" + format + "} {1}", number, suffixes[counter]);
+        }
+
+        public void OpenInExplorer(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) return;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo()
+                {
+                    FileName = path,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Explorer Error: " + ex.Message);
+            }
         }
 
         //Stupid ass workaround to get the native Windows folder picker IFileOpenDialog
