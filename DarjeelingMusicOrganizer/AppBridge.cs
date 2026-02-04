@@ -13,6 +13,8 @@ namespace DarjeelingMusicOrganizer
     public class AppBridge
     {
         private const string SettingsFileName = "darjeeling_settings.json";
+        //Version
+        public const string AppVersion = "v0.1.0 Alpha";
         private static readonly System.Net.Http.HttpClient httpClient = new System.Net.Http.HttpClient();
 
 
@@ -28,7 +30,14 @@ namespace DarjeelingMusicOrganizer
 
         public void CloseWindow()
         {
-            Application.Exit();
+            if (Form.ActiveForm != null)
+            {
+                Form.ActiveForm.Close();
+            }
+            else
+            {
+                Application.Exit();
+            }
         }
 
         public void DragWindow()
@@ -214,6 +223,7 @@ namespace DarjeelingMusicOrganizer
                 if (newSettings.AiProvider != null) currentSettings.AiProvider = newSettings.AiProvider;
                 if (newSettings.ApiEndpoint != null) currentSettings.ApiEndpoint = newSettings.ApiEndpoint;
                 if (newSettings.ModelVersion != null) currentSettings.ModelVersion = newSettings.ModelVersion;
+                currentSettings.MinimizeToTray = newSettings.MinimizeToTray;
                 if (newSettings.CollectionPath != null) currentSettings.CollectionPath = newSettings.CollectionPath; // In case UI sends it
 
                 //API Key Encryption
@@ -266,6 +276,12 @@ namespace DarjeelingMusicOrganizer
             public string ApiKey { get; set; }
             public string ApiEndpoint { get; set; }
             public string ModelVersion { get; set; }
+            public bool MinimizeToTray { get; set; }
+        }
+
+        public string GetAppVersion()
+        {
+            return AppVersion;
         }
 
         public string SelectFolder()

@@ -8,24 +8,22 @@ import Footer from './Footer';
 const Display = () => {
     const [activeTab, setActiveTab] = useState('play');
     const [currentModel, setCurrentModel] = useState(null);
+    const [appVersion, setAppVersion] = useState("v0.1.0 Alpha");
 
     const loadSettings = async () => {
         if (window.chrome?.webview?.hostObjects?.appBridge) {
             try {
+                // Settings
                 const settingsJson = await window.chrome.webview.hostObjects.appBridge.GetSettings();
                 if (settingsJson) {
                     const settings = JSON.parse(settingsJson);
-
-                    let displayModel = "Unknown";
-                    if (settings.AiProvider && settings.ModelVersion) {
-                        displayModel = `${settings.AiProvider} - ${settings.ModelVersion}`;
-
-                        //Simple cleanup for display if it matches known patterns
-                        if (settings.ModelVersion.includes("gemini")) {
-                        }
-                    }
                     setCurrentModel(settings.ModelVersion ? settings.ModelVersion : null);
                 }
+
+                // Version
+                const ver = await window.chrome.webview.hostObjects.appBridge.GetAppVersion();
+                if (ver) setAppVersion(ver);
+
             } catch (e) {
                 console.error("Failed to load settings for footer", e);
             }
@@ -67,6 +65,7 @@ const Display = () => {
             {/*Footer */}
             <Footer
                 currentModel={currentModel}
+                version={appVersion}
                 onNavigateToSettings={() => setActiveTab('settings')}
             />
         </div>
