@@ -9,8 +9,12 @@ const Settings = ({ onSaveSuccess }) => {
         ApiKey: '',
         ApiEndpoint: PROVIDERS.Google.defaultEndpoint,
         ApiEndpoint: PROVIDERS.Google.defaultEndpoint,
-        ModelVersion: PROVIDERS.Google.models[0].value
+        ModelVersion: PROVIDERS.Google.models[0].value,
+        MinimizeToTray: false
     };
+
+    //Version
+    const [appVersion, setAppVersion] = useState("v0.1.0 Alpha");
 
     const [folderStats, setFolderStats] = useState(null);
 
@@ -34,18 +38,17 @@ const Settings = ({ onSaveSuccess }) => {
                         const saved = JSON.parse(savedSettingsJson);
                         console.log("[Settings] Parsed:", saved);
 
-                        // Defaults
+                        //Defaults
                         const providerDefaults = PROVIDERS.Google;
                         const defaultEndpoint = providerDefaults.defaultEndpoint;
                         const defaultModel = providerDefaults.models[0].value;
-
-                        // Robust Mapping (Handle PascalCase from C# or camelCase potential)
-                        // This explicitly looks for the keys we expect
                         const loadedSettings = {
                             AiProvider: saved.AiProvider || saved.aiProvider || 'Google',
                             ApiKey: saved.ApiKey || saved.apiKey || '',
                             ApiEndpoint: saved.ApiEndpoint || saved.apiEndpoint || defaultEndpoint,
-                            ModelVersion: saved.ModelVersion || saved.modelVersion || defaultModel
+                            ApiEndpoint: saved.ApiEndpoint || saved.apiEndpoint || defaultEndpoint,
+                            ModelVersion: saved.ModelVersion || saved.modelVersion || defaultModel,
+                            MinimizeToTray: saved.MinimizeToTray === true || saved.minimizeToTray === true
                         };
 
                         setSettings(prev => ({
@@ -56,6 +59,11 @@ const Settings = ({ onSaveSuccess }) => {
                 } catch (e) {
                     console.error("[Settings] Failed to load settings", e);
                 }
+
+                try {
+                    const ver = await window.chrome.webview.hostObjects.appBridge.GetAppVersion();
+                    if (ver) setAppVersion(ver);
+                } catch (e) { }
             }
         };
         loadSettings();
@@ -582,9 +590,131 @@ const Settings = ({ onSaveSuccess }) => {
                         )}
 
                         {activeSection === 'misc' && (
-                            <div className="flex items-center justify-center h-48 border-2 border-dashed border-[#e8e3d3] rounded-2xl">
-                                <span className="text-[#9c8b77] font-bold">This section is not implemented yet.</span>
-                            </div>
+                            <>
+                                {/*About Section */}
+                                <section>
+                                    <label className="block text-sm font-extrabold text-[#5c4b37] uppercase tracking-wide mb-4 ml-1">
+                                        About Darjeeling
+                                    </label>
+
+                                    <div className="bg-[#f9f7f0] border-4 border-[#e8e3d3] rounded-3xl p-8 relative overflow-hidden">
+                                        {/*Background Mug icon */}
+                                        <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+                                            <i className="fa-solid fa-mug-hot text-9xl text-[#5c4b37] rotate-6"></i>
+                                        </div>
+
+                                        <div className="relative z-10">
+                                            {/*Title and Version */}
+                                            <div className="mb-6">
+                                                <h1 className="text-3xl font-extrabold text-[#5c4b37] tracking-tight">Darjeeling Music Organizer</h1>
+                                                {/*Version, when it's released, change this to "EDF2EC" */}
+                                                <div className="inline-block mt-2 bg-[#eebb4d] text-white text-xs font-bold font-mono px-3 py-1 rounded-full shadow-sm">
+                                                    {appVersion}
+                                                </div>
+                                            </div>
+
+                                            {/* Developer Credit */}
+                                            <div className="flex items-center gap-3 mb-8">
+                                                <div className="w-10 h-10 bg-[#5c4b37] rounded-full flex items-center justify-center text-[#fffefb]">
+                                                    <i className="fa-solid fa-user"></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs text-[#9c8b77] font-bold uppercase tracking-wider">Developed By</div>
+                                                    <a href="https://github.com/joshuazhang447" target="_blank" rel="noreferrer" className="text-lg font-bold hover:underline decoration-2 underline-offset-2 decoration-[#eebb4d] text-[#5c4b37]">
+                                                        Joshua Z <i className="fa-solid fa-arrow-up-right-from-square text-xs ml-1 opacity-50"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+
+                                            {/*GitHub Buttons */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {/*Link */}
+                                                <a
+                                                    href="https://github.com/joshuazhang447/project-darjeeling"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="bg-white border-2 border-[#e8e3d3] hover:border-[#5c4b37] rounded-2xl p-4 flex items-center gap-4 shadow-sm group transition-all"
+                                                >
+                                                    <div className="w-10 h-10 bg-[#24292e] rounded-xl flex items-center justify-center text-white text-xl shrink-0">
+                                                        <i className="fa-brands fa-github"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-[#5c4b37]">Source Code</div>
+                                                        <div className="text-xs text-[#9c8b77] group-hover:text-[#5c4b37]">Visit Repository</div>
+                                                    </div>
+                                                </a>
+
+                                                {/*Releases Link */}
+                                                <a
+                                                    href="https://github.com/joshuazhang447/project-darjeeling/releases"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="bg-white border-2 border-[#e8e3d3] hover:border-[#4A5D4E] rounded-2xl p-4 flex items-center gap-4 shadow-sm group transition-all"
+                                                >
+                                                    <div className="w-10 h-10 bg-[#EDF2EC] text-[#4A5D4E] rounded-xl flex items-center justify-center text-xl shrink-0">
+                                                        <i className="fa-solid fa-tag"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-[#5c4b37]">Releases</div>
+                                                        <div className="text-xs text-[#9c8b77] group-hover:text-[#4A5D4E]">Download Updates</div>
+                                                    </div>
+                                                </a>
+                                            </div>
+
+                                            {/*Copyright */}
+                                            <div className="mt-8 pt-6 border-t-2 border-dotted border-[#e8e3d3] text-center">
+                                                <p className="text-xs text-[#9c8b77] font-semibold">
+                                                    <i className="fa-solid fa-heart text-[#eebb4d] mr-1"></i>
+                                                    Completely Free & Open Source Made Just For You
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <hr className="border-t-2 border-dotted border-[#e8e3d3]" />
+
+                                {/*System Behaviors */}
+                                <section>
+                                    <label className="block text-sm font-extrabold text-[#5c4b37] uppercase tracking-wide mb-4 ml-1">
+                                        System Behaviors
+                                    </label>
+
+                                    {/* Minimize to Tray */}
+                                    <div className="bg-white border-2 border-[#f0f3e6] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-[#EDF2EC] text-[#4A5D4E] rounded-xl flex items-center justify-center text-xl shrink-0">
+                                                <i className="fa-solid fa-minimize"></i>
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-[#5c4b37]">Minimize to System Tray</div>
+                                                <div className="text-xs text-[#9c8b77]">App stays running in background when closed.</div>
+                                            </div>
+                                        </div>
+
+                                        {/*Toggle Switch */}
+                                        <div className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                id="tray-toggle"
+                                                className="toggle-checkbox"
+                                                checked={settings.MinimizeToTray}
+                                                onChange={(e) => {
+                                                    const newVal = e.target.checked;
+                                                    updateSetting('MinimizeToTray', newVal);
+
+                                                    //Auto-save this setting specifically
+                                                    if (window.chrome?.webview?.hostObjects?.appBridge) {
+                                                        const newSettings = { ...settings, MinimizeToTray: newVal };
+                                                        window.chrome.webview.hostObjects.appBridge.SaveSettings(JSON.stringify(newSettings));
+                                                    }
+                                                }}
+                                            />
+                                            <label htmlFor="tray-toggle" className="toggle-label"></label>
+                                        </div>
+                                    </div>
+                                </section>
+                            </>
                         )}
                     </div>
                 </div>
