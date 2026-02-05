@@ -98,3 +98,20 @@
 .toggle-checkbox:checked+.toggle-label:before {
     transform: translateX(22px);
 }
+
+/* Tooltip Fade In Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.15s ease-out forwards;
+}

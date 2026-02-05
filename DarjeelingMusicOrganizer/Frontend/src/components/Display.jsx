@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import NavBar from './NavBar';
-import Organize from './Organize';
+import Organize from './organize/organize';
 import Play from './Play';
 import Settings from './Settings';
 import Footer from './Footer';

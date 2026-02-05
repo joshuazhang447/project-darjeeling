@@ -284,6 +284,212 @@ namespace DarjeelingMusicOrganizer
             return AppVersion;
         }
 
+        //JSON camelCase serialization
+        private static readonly JsonSerializerOptions CamelCaseOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        //Checks if the library database exists and returns stats
+        public string CheckLibraryDatabase()
+        {
+            try
+            {
+                var settingsJson = GetSettings();
+                if (string.IsNullOrEmpty(settingsJson)) 
+                    return JsonSerializer.Serialize(new { exists = false, isEmpty = true });
+
+                var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                string libraryPath = Path.Combine(settings?.CollectionPath ?? "", "Library");
+
+                if (!Directory.Exists(libraryPath))
+                    return JsonSerializer.Serialize(new { exists = false, isEmpty = true });
+
+                bool dbExists = LibraryManager.DatabaseExists(libraryPath);
+                
+                if (dbExists)
+                {
+                    var stats = LibraryManager.GetLibraryStats(libraryPath);
+                    //Check if library folder is empty (only Multiple_Artists with no tracks)
+                    bool isEmpty = stats.TotalTracks == 0;
+                    
+                    return JsonSerializer.Serialize(new
+                    {
+                        exists = true,
+                        isEmpty = isEmpty,
+                        totalArtists = stats.TotalArtists,
+                        totalAlbums = stats.TotalAlbums,
+                        totalTracks = stats.TotalTracks,
+                        totalSize = stats.FormattedSize,
+                        totalSizeBytes = stats.TotalSizeBytes
+                    });
+                }
+
+                return JsonSerializer.Serialize(new { exists = false, isEmpty = true });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("CheckLibraryDatabase Error: " + ex.Message);
+                return JsonSerializer.Serialize(new { exists = false, isEmpty = true, error = ex.Message });
+            }
+        }
+
+
+        //GetLibraryTree structure from the database
+        public string GetLibraryTree()
+        {
+            try
+            {
+                var settingsJson = GetSettings();
+                if (string.IsNullOrEmpty(settingsJson)) 
+                    return "[]";
+
+                var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                string libraryPath = Path.Combine(settings?.CollectionPath ?? "", "Library");
+
+                var tree = LibraryManager.GetLibraryTree(libraryPath);
+                return JsonSerializer.Serialize(tree, CamelCaseOptions);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("GetLibraryTree Error: " + ex.Message);
+                return "[]";
+            }
+        }
+
+        public string SearchLibrary(string query)
+        {
+            try
+            {
+                var settingsJson = GetSettings();
+                if (string.IsNullOrEmpty(settingsJson)) 
+                    return "[]";
+
+                var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                string libraryPath = Path.Combine(settings?.CollectionPath ?? "", "Library");
+
+                var results = LibraryManager.SearchLibrary(libraryPath, query);
+                return JsonSerializer.Serialize(results, CamelCaseOptions);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("SearchLibrary Error: " + ex.Message);
+                return "[]";
+            }
+        }
+
+
+        //Validations
+        public string ValidateLibraryFolder(string folderPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(folderPath))
+                    return JsonSerializer.Serialize(new { valid = false, message = "No folder selected" });
+
+                var result = LibraryManager.ValidateLibraryFolder(folderPath);
+                return JsonSerializer.Serialize(new
+                {
+                    valid = result.Type == LibraryManager.ScanResultType.Success,
+                    type = result.Type.ToString(),
+                    message = result.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new { valid = false, message = ex.Message });
+            }
+        }
+
+        private static string _scanStatus = "idle";
+        private static string _scanMessage = "";
+        private static LibraryManager.ScanResult _lastScanResult = null;
+
+   
+        //Starts the library scan asynchronously
+        public void StartLibraryScan(string folderPath)
+        {
+            _scanStatus = "scanning";
+            _scanMessage = "Starting scan...";
+            _lastScanResult = null;
+
+            var progress = new Progress<string>(msg =>
+            {
+                _scanMessage = msg;
+            });
+
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var result = await LibraryManager.ScanAndImportLibrary(folderPath, progress);
+                    _lastScanResult = result;
+                    
+                    if (result.Type == LibraryManager.ScanResultType.Success)
+                    {
+                        _scanStatus = "success";
+                        _scanMessage = result.Message;
+                    }
+                    else
+                    {
+                        _scanStatus = "error";
+                        _scanMessage = result.Message;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _scanStatus = "error";
+                    _scanMessage = ex.Message;
+                }
+            });
+        }
+
+        // Gets the current scan status
+        public string GetScanStatus()
+        {
+            var response = new
+            {
+                status = _scanStatus,
+                message = _scanMessage,
+                stats = _lastScanResult?.Stats != null ? new
+                {
+                    totalArtists = _lastScanResult.Stats.TotalArtists,
+                    totalAlbums = _lastScanResult.Stats.TotalAlbums,
+                    totalTracks = _lastScanResult.Stats.TotalTracks,
+                    totalSize = _lastScanResult.Stats.FormattedSize
+                } : null,
+                backupPath = _lastScanResult?.BackupPath
+            };
+            return JsonSerializer.Serialize(response);
+        }
+
+        //Resets the scan status to idle
+        public void ResetScanStatus()
+        {
+            _scanStatus = "idle";
+            _scanMessage = "";
+            _lastScanResult = null;
+        }
+
+        // Gets the Library folder path
+        public string GetLibraryPath()
+        {
+            try
+            {
+                var settingsJson = GetSettings();
+                if (string.IsNullOrEmpty(settingsJson)) return null;
+
+                var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                return Path.Combine(settings?.CollectionPath ?? "", "Library");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        #endregion
+
         public string SelectFolder()
         {
             //Native Windows folder picker IFileOpenDialog (not the web one)
