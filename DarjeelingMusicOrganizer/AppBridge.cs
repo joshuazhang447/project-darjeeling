@@ -488,8 +488,6 @@ namespace DarjeelingMusicOrganizer
             }
         }
 
-        #endregion
-
         public string SelectFolder()
         {
             //Native Windows folder picker IFileOpenDialog (not the web one)
