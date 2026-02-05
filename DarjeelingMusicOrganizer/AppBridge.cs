@@ -359,6 +359,7 @@ namespace DarjeelingMusicOrganizer
             Directory.CreateDirectory(effectivePath);
             Directory.CreateDirectory(Path.Combine(effectivePath, "New"));
             Directory.CreateDirectory(Path.Combine(effectivePath, "Library"));
+            Directory.CreateDirectory(Path.Combine(effectivePath, "Library", "Multiple_Artists"));
             Directory.CreateDirectory(Path.Combine(effectivePath, "Backups"));
 
             string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DarjeelingMusicOrganizer");
