@@ -388,11 +388,16 @@ namespace DarjeelingMusicOrganizer
                     return JsonSerializer.Serialize(new { valid = false, message = "No folder selected" });
 
                 var result = LibraryManager.ValidateLibraryFolder(folderPath);
+                
+                // Check if database exists in the folder (for determining if this is first import)
+                bool databaseExists = LibraryManager.DatabaseExists(folderPath);
+                
                 return JsonSerializer.Serialize(new
                 {
                     valid = result.Type == LibraryManager.ScanResultType.Success,
                     type = result.Type.ToString(),
-                    message = result.Message
+                    message = result.Message,
+                    databaseExists = databaseExists
                 });
             }
             catch (Exception ex)
@@ -404,11 +409,19 @@ namespace DarjeelingMusicOrganizer
         private static string _scanStatus = "idle";
         private static string _scanMessage = "";
         private static LibraryManager.ScanResult _lastScanResult = null;
+        private static bool _scanInProgress = false;
 
    
         //Starts the library scan asynchronously
-        public void StartLibraryScan(string folderPath)
+        public void StartLibraryScan(string folderPath, string snapshotName = null)
         {
+            // Prevent starting a new scan while one is already running
+            if (_scanInProgress)
+            {
+                return;
+            }
+            
+            _scanInProgress = true;
             _scanStatus = "scanning";
             _scanMessage = "Starting scan...";
             _lastScanResult = null;
@@ -422,7 +435,7 @@ namespace DarjeelingMusicOrganizer
             {
                 try
                 {
-                    var result = await LibraryManager.ScanAndImportLibrary(folderPath, progress);
+                    var result = await LibraryManager.ScanAndImportLibrary(folderPath, snapshotName, progress);
                     _lastScanResult = result;
                     
                     if (result.Type == LibraryManager.ScanResultType.Success)
@@ -440,6 +453,10 @@ namespace DarjeelingMusicOrganizer
                 {
                     _scanStatus = "error";
                     _scanMessage = ex.Message;
+                }
+                finally
+                {
+                    _scanInProgress = false;
                 }
             });
         }
@@ -470,6 +487,129 @@ namespace DarjeelingMusicOrganizer
             _scanMessage = "";
             _lastScanResult = null;
         }
+
+        #region Restore/Snapshot Methods
+
+        private static string _restoreStatus = "idle";
+        private static string _restoreMessage = "";
+        private static SnapshotManager.RestoreResult _lastRestoreResult = null;
+
+        /// <summary>
+        /// Gets all available backup snapshots.
+        /// </summary>
+        public string GetAvailableBackups()
+        {
+            try
+            {
+                var settingsJson = GetSettings();
+                if (string.IsNullOrEmpty(settingsJson)) 
+                    return "[]";
+
+                var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                if (string.IsNullOrWhiteSpace(settings?.CollectionPath))
+                    return "[]";
+
+                var backups = SnapshotManager.GetAvailableBackups(settings.CollectionPath);
+                return JsonSerializer.Serialize(backups, CamelCaseOptions);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("GetAvailableBackups Error: " + ex.Message);
+                return "[]";
+            }
+        }
+
+        /// <summary>
+        /// Starts the restore process asynchronously.
+        /// </summary>
+        public void StartRestore(string backupFolderId)
+        {
+            _restoreStatus = "working";
+            _restoreMessage = "Starting restore...";
+            _lastRestoreResult = null;
+
+            var progress = new Progress<string>(msg =>
+            {
+                _restoreMessage = msg;
+            });
+
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var settingsJson = GetSettings();
+                    if (string.IsNullOrEmpty(settingsJson))
+                    {
+                        _restoreStatus = "error";
+                        _restoreMessage = "Settings not found.";
+                        return;
+                    }
+
+                    var settings = JsonSerializer.Deserialize<SettingsModel>(settingsJson);
+                    string libraryPath = Path.Combine(settings?.CollectionPath ?? "", "Library");
+                    string backupFolder = Path.Combine(settings?.CollectionPath ?? "", "Backups", backupFolderId);
+
+                    if (!Directory.Exists(backupFolder))
+                    {
+                        _restoreStatus = "error";
+                        _restoreMessage = "Backup folder not found.";
+                        return;
+                    }
+
+                    var result = await SnapshotManager.RestoreSnapshot(backupFolder, libraryPath, progress);
+                    _lastRestoreResult = result;
+
+                    if (result.Success)
+                    {
+                        _restoreStatus = "success";
+                        _restoreMessage = result.Message;
+                    }
+                    else
+                    {
+                        _restoreStatus = "error";
+                        _restoreMessage = result.Message;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _restoreStatus = "error";
+                    _restoreMessage = ex.Message;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Gets the current restore status.
+        /// </summary>
+        public string GetRestoreStatus()
+        {
+            var response = new
+            {
+                status = _restoreStatus,
+                message = _restoreMessage,
+                result = _lastRestoreResult != null ? new
+                {
+                    filesMoved = _lastRestoreResult.FilesMoved,
+                    filesDeleted = _lastRestoreResult.FilesDeleted,
+                    foldersDeleted = _lastRestoreResult.FoldersDeleted,
+                    filesMissing = _lastRestoreResult.FilesMissing,
+                    errorLogPath = _lastRestoreResult.ErrorLogPath
+                } : null
+            };
+            return JsonSerializer.Serialize(response);
+        }
+
+        /// <summary>
+        /// Resets the restore status to idle.
+        /// </summary>
+        public void ResetRestoreStatus()
+        {
+            _restoreStatus = "idle";
+            _restoreMessage = "";
+            _lastRestoreResult = null;
+        }
+
+        #endregion
 
         // Gets the Library folder path
         public string GetLibraryPath()

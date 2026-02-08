@@ -230,17 +230,24 @@ const Importer = () => {
      *Handle Import/Refresh button click
      */
     const handleImportClick = async () => {
+        //Immediately set to working to prevent double-clicks
+        //The button is disabled when logStatus is working or scanning
+        if (logStatus === 'working' || logStatus === 'scanning') {
+            return;
+        }
+
         try {
-            //Reset previous errors
+            //Reset previous errors and set working state IMMEDIATELY
             setLogError(null);
-            setLogStatus('ready');
+            setLogStatus('working');
             setLogMessage('Select your Library folder...');
 
             //Prompt user to select a folder via native dialog
             const selectedFolder = await window.chrome.webview.hostObjects.appBridge.SelectFolder();
 
             if (!selectedFolder) {
-                //User cancelled the dialog
+                //User cancelled the dialog - reset to ready state
+                setLogStatus('ready');
                 setLogMessage("Press 'Import/Refresh' to scan directory, update the library structure, and generate a backup point.");
                 return;
             }
@@ -259,10 +266,29 @@ const Importer = () => {
             setLogStatus('scanning');
             setLogMessage('Scanning library structure...');
 
-            // Start Async scan
-            await window.chrome.webview.hostObjects.appBridge.StartLibraryScan(selectedFolder);
+            //Only prompt for snapshot name if this is NOT the first import
+            //First import shouldn't create a backup, so no point asking for a name
+            let snapshotName = null;
+            if (validation.databaseExists) {
+                snapshotName = window.prompt(
+                    'Enter a name for this backup snapshot (leave empty for no name):',
+                    ''
+                );
+                // User cancelled the prompt, abort import
+                if (snapshotName === null) {
+                    setLogStatus('ready');
+                    setLogMessage("Import cancelled.");
+                    return;
+                }
+            }
 
-            // Poll for status
+            //Start Async scan with snapshot name (null if empty or first import)
+            await window.chrome.webview.hostObjects.appBridge.StartLibraryScan(
+                selectedFolder,
+                snapshotName && snapshotName.trim() ? snapshotName.trim() : null
+            );
+
+            //Poll for status
             const pollId = setInterval(async () => {
                 try {
                     const statusJson = await window.chrome.webview.hostObjects.appBridge.GetScanStatus();

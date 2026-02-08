@@ -152,6 +152,7 @@ namespace DarjeelingMusicOrganizer
                         Extension TEXT NOT NULL,
                         SizeBytes INTEGER NOT NULL,
                         DateModified INTEGER NOT NULL,
+                        FileHash TEXT,
                         Title TEXT,
                         ContributingArtists TEXT,
                         AlbumArtist TEXT,
@@ -169,6 +170,7 @@ namespace DarjeelingMusicOrganizer
                 //Indices
                 ExecuteNonQuery(connection, "CREATE INDEX IF NOT EXISTS IDX_Albums_ArtistId ON Albums(ArtistId);");
                 ExecuteNonQuery(connection, "CREATE INDEX IF NOT EXISTS IDX_Tracks_AlbumId ON Tracks(AlbumId);");
+                ExecuteNonQuery(connection, "CREATE INDEX IF NOT EXISTS IDX_Tracks_FileHash ON Tracks(FileHash);");
                 ExecuteNonQuery(connection, "CREATE INDEX IF NOT EXISTS IDX_Search_Meta ON Tracks(Title, ContributingArtists, AlbumArtist, Genre);");
                 ExecuteNonQuery(connection, "CREATE INDEX IF NOT EXISTS IDX_Sort_Year ON Albums(Year DESC);");
 
@@ -259,7 +261,7 @@ namespace DarjeelingMusicOrganizer
 
 
         //Scans the library folder and populates the database
-        public static async Task<ScanResult> ScanAndImportLibrary(string libraryPath, IProgress<string> progress = null)
+        public static async Task<ScanResult> ScanAndImportLibrary(string libraryPath, string snapshotName = null, IProgress<string> progress = null)
         {
             return await Task.Run(() =>
             {
@@ -274,13 +276,10 @@ namespace DarjeelingMusicOrganizer
 
                     progress?.Report("Preparing database...");
 
-                    //Create backup if database exists (needs to be restructured in the future)
-                    string backupPath = null;
                     string dbPath = GetDatabasePath(libraryPath);
-                    if (System.IO.File.Exists(dbPath))
-                    {
-                        backupPath = CreateBackup(libraryPath, progress);
-                    }
+                    
+                    // Check if this is a first import (no existing database)
+                    bool isFirstImport = !System.IO.File.Exists(dbPath);
 
                     //Delete existing db and create a fresh db
                     if (System.IO.File.Exists(dbPath))
@@ -292,15 +291,23 @@ namespace DarjeelingMusicOrganizer
 
                     progress?.Report("Scanning library structure...");
 
-                    //Scan and populate
+                    //Scan and populate database FIRST
                     LibraryStats stats = PopulateDatabase(libraryPath, progress);
+
+                    //THEN create backup of the NEW state (only if not first import)
+                    string backupPath = null;
+                    if (!isFirstImport)
+                    {
+                        progress?.Report("Creating snapshot backup...");
+                        backupPath = SnapshotManager.CreateSnapshot(libraryPath, snapshotName, progress).Result;
+                    }
 
                     return new ScanResult
                     {
                         Type = ScanResultType.Success,
                         Message = backupPath != null 
                             ? $"Library updated. Backup created at: {Path.GetFileName(backupPath)}"
-                            : "Library imported successfully.",
+                            : "Library imported successfully. No backup created (first import).",
                         BackupPath = backupPath,
                         Stats = stats
                     };
@@ -456,6 +463,7 @@ namespace DarjeelingMusicOrganizer
             public string Extension { get; set; }
             public long SizeBytes { get; set; }
             public long DateModified { get; set; }
+            public string FileHash { get; set; }
             public string Title { get; set; }
             public string ContributingArtists { get; set; }
             public string AlbumArtist { get; set; }
@@ -476,7 +484,8 @@ namespace DarjeelingMusicOrganizer
                 FileName = fileInfo.Name,
                 Extension = fileInfo.Extension.ToLowerInvariant(),
                 SizeBytes = fileInfo.Length,
-                DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
+                DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds(),
+                FileHash = SnapshotManager.ComputeFileHash(filePath)
             };
 
             try
@@ -509,10 +518,10 @@ namespace DarjeelingMusicOrganizer
         {
             string sql = @"
                 INSERT OR REPLACE INTO Tracks 
-                (AlbumId, FileName, Extension, SizeBytes, DateModified, Title, ContributingArtists, 
+                (AlbumId, FileName, Extension, SizeBytes, DateModified, FileHash, Title, ContributingArtists, 
                  AlbumArtist, AlbumTag, Year, TrackNumber, DiscNumber, Genre, DurationMs, Bitrate)
                 VALUES 
-                (@albumId, @fileName, @ext, @size, @modified, @title, @artists, 
+                (@albumId, @fileName, @ext, @size, @modified, @fileHash, @title, @artists, 
                  @albumArtist, @albumTag, @year, @trackNum, @discNum, @genre, @duration, @bitrate);";
 
             using (var cmd = new SQLiteCommand(sql, connection))
@@ -522,6 +531,7 @@ namespace DarjeelingMusicOrganizer
                 cmd.Parameters.AddWithValue("@ext", track.Extension);
                 cmd.Parameters.AddWithValue("@size", track.SizeBytes);
                 cmd.Parameters.AddWithValue("@modified", track.DateModified);
+                cmd.Parameters.AddWithValue("@fileHash", (object)track.FileHash ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@title", (object)track.Title ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@artists", (object)track.ContributingArtists ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@albumArtist", (object)track.AlbumArtist ?? DBNull.Value);

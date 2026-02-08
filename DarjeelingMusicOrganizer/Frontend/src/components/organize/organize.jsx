@@ -58,7 +58,7 @@ const Organize = () => {
                             }`}
                     >
                         <i className={`fa-solid fa-clock-rotate-left ${subTab === 'restore' ? 'text-[#88c9a1]' : ''}`}></i>
-                        Restore
+                        Restorer
                     </button>
 
                 </div>
