@@ -33,7 +33,21 @@ namespace DarjeelingMusicOrganizer
                 DwmSetWindowAttribute(this.Handle, attribute, ref intPreference, sizeof(int));
             } catch {}
 
-            _ = InitializeWebViewAsync();
+            InitializeWebViewAsync().ContinueWith(t =>
+            {
+                if (t.IsFaulted && t.Exception != null)
+                {
+                    var ex = t.Exception.InnerException ?? t.Exception;
+                    this.BeginInvoke((Action)(() =>
+                    {
+                        MessageBox.Show(
+                            $"WebView Init Failed: {ex.Message}\n{ex.StackTrace}",
+                            "Critical Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error);
+                    }));
+                }
+            }, TaskScheduler.Default);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
