@@ -16,7 +16,7 @@ namespace DarjeelingMusicOrganizer
         private const string DatabaseFileName = "Current.sqlite3";
         
         //Big list of supported audio formats
-        private static readonly HashSet<string> SupportedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        public static readonly HashSet<string> SupportedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".mp3", ".flac", ".wav", ".aac", ".m4a", ".ogg", ".opus", ".wma",
             ".aiff", ".aif", ".alac", ".ape", ".dsf", ".dff", ".mpc", ".wv", ".tta"
@@ -48,20 +48,7 @@ namespace DarjeelingMusicOrganizer
             public int TotalAlbums { get; set; }
             public int TotalTracks { get; set; }
             public long TotalSizeBytes { get; set; }
-            public string FormattedSize => FormatBytes(TotalSizeBytes);
-
-            private static string FormatBytes(long bytes)
-            {
-                string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
-                int counter = 0;
-                decimal number = bytes;
-                while (Math.Round(number / 1024) >= 1 && counter < suffixes.Length - 1)
-                {
-                    number /= 1024;
-                    counter++;
-                }
-                return $"{number:0.#} {suffixes[counter]}";
-            }
+            public string FormattedSize => LibraryManager.FormatBytes(TotalSizeBytes);
         }
 
         public class TreeNode
@@ -854,7 +841,7 @@ namespace DarjeelingMusicOrganizer
             return results;
         }
 
-        private static string FormatBytes(long bytes)
+        public static string FormatBytes(long bytes)
         {
             string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
             int counter = 0;
