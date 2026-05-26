@@ -16,7 +16,7 @@ namespace DarjeelingMusicOrganizer
         private const string DatabaseFileName = "Current.sqlite3";
         
         //Big list of supported audio formats
-        private static readonly HashSet<string> SupportedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        public static readonly HashSet<string> SupportedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".mp3", ".flac", ".wav", ".aac", ".m4a", ".ogg", ".opus", ".wma",
             ".aiff", ".aif", ".alac", ".ape", ".dsf", ".dff", ".mpc", ".wv", ".tta"
@@ -48,20 +48,7 @@ namespace DarjeelingMusicOrganizer
             public int TotalAlbums { get; set; }
             public int TotalTracks { get; set; }
             public long TotalSizeBytes { get; set; }
-            public string FormattedSize => FormatBytes(TotalSizeBytes);
-
-            private static string FormatBytes(long bytes)
-            {
-                string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
-                int counter = 0;
-                decimal number = bytes;
-                while (Math.Round(number / 1024) >= 1 && counter < suffixes.Length - 1)
-                {
-                    number /= 1024;
-                    counter++;
-                }
-                return $"{number:0.#} {suffixes[counter]}";
-            }
+            public string FormattedSize => LibraryManager.FormatBytes(TotalSizeBytes);
         }
 
         public class TreeNode
@@ -153,6 +140,7 @@ namespace DarjeelingMusicOrganizer
                         SizeBytes INTEGER NOT NULL,
                         DateModified INTEGER NOT NULL,
                         FileHash TEXT,
+                        FingerPrint TEXT,
                         Title TEXT,
                         ContributingArtists TEXT,
                         AlbumArtist TEXT,
@@ -464,6 +452,7 @@ namespace DarjeelingMusicOrganizer
             public long SizeBytes { get; set; }
             public long DateModified { get; set; }
             public string FileHash { get; set; }
+            public string FingerPrint { get; set; }
             public string Title { get; set; }
             public string ContributingArtists { get; set; }
             public string AlbumArtist { get; set; }
@@ -485,7 +474,8 @@ namespace DarjeelingMusicOrganizer
                 Extension = fileInfo.Extension.ToLowerInvariant(),
                 SizeBytes = fileInfo.Length,
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds(),
-                FileHash = SnapshotManager.ComputeFileHash(filePath)
+                FileHash = SnapshotManager.ComputeFileHash(filePath),
+                FingerPrint = ComputeChromaprint(filePath)
             };
 
             try
@@ -518,10 +508,10 @@ namespace DarjeelingMusicOrganizer
         {
             string sql = @"
                 INSERT OR REPLACE INTO Tracks 
-                (AlbumId, FileName, Extension, SizeBytes, DateModified, FileHash, Title, ContributingArtists, 
+                (AlbumId, FileName, Extension, SizeBytes, DateModified, FileHash, FingerPrint, Title, ContributingArtists, 
                  AlbumArtist, AlbumTag, Year, TrackNumber, DiscNumber, Genre, DurationMs, Bitrate)
                 VALUES 
-                (@albumId, @fileName, @ext, @size, @modified, @fileHash, @title, @artists, 
+                (@albumId, @fileName, @ext, @size, @modified, @fileHash, @fingerPrint, @title, @artists, 
                  @albumArtist, @albumTag, @year, @trackNum, @discNum, @genre, @duration, @bitrate);";
 
             using (var cmd = new SQLiteCommand(sql, connection))
@@ -532,6 +522,7 @@ namespace DarjeelingMusicOrganizer
                 cmd.Parameters.AddWithValue("@size", track.SizeBytes);
                 cmd.Parameters.AddWithValue("@modified", track.DateModified);
                 cmd.Parameters.AddWithValue("@fileHash", (object)track.FileHash ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@fingerPrint", (object)track.FingerPrint ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@title", (object)track.Title ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@artists", (object)track.ContributingArtists ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@albumArtist", (object)track.AlbumArtist ?? DBNull.Value);
@@ -546,7 +537,70 @@ namespace DarjeelingMusicOrganizer
             }
         }
 
+        private static string ComputeChromaprint(string filePath)
+        {
+            try
+            {
+                string fpcalcPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fpcalc.exe");
+                System.Diagnostics.Debug.WriteLine($"[Chromaprint] Looking for fpcalc at: {fpcalcPath}");
+                
+                if (!System.IO.File.Exists(fpcalcPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("[Chromaprint] ERROR: fpcalc.exe not found!");
+                    return null;
+                }
 
+                System.Diagnostics.Debug.WriteLine($"[Chromaprint] Running fpcalc for: {filePath}");
+                var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = fpcalcPath,
+                        Arguments = $"-json \"{filePath}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        StandardOutputEncoding = System.Text.Encoding.UTF8
+                    }
+                };
+
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                string errorOutput = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                System.Diagnostics.Debug.WriteLine($"[Chromaprint] Exit Code: {process.ExitCode}");
+                
+                if (process.ExitCode != 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Chromaprint] ERROR Output: {errorOutput}");
+                }
+
+                if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Chromaprint] Successfully got output. Parsing JSON...");
+                    using (var doc = JsonDocument.Parse(output))
+                    {
+                        if (doc.RootElement.TryGetProperty("fingerprint", out JsonElement fpElement))
+                        {
+                            string fp = fpElement.GetString();
+                            System.Diagnostics.Debug.WriteLine($"[Chromaprint] Fingerprint captured successfully. Length: {fp?.Length}");
+                            return fp;
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("[Chromaprint] ERROR: 'fingerprint' property not found in JSON output.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Chromaprint] EXCEPTION: {ex.Message}");
+            }
+            return null;
+        }
 
         //Loading library tree via db
         public static List<TreeNode> GetLibraryTree(string libraryPath)
@@ -787,7 +841,7 @@ namespace DarjeelingMusicOrganizer
             return results;
         }
 
-        private static string FormatBytes(long bytes)
+        public static string FormatBytes(long bytes)
         {
             string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
             int counter = 0;

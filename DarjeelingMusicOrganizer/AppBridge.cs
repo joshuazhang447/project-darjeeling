@@ -406,6 +406,24 @@ namespace DarjeelingMusicOrganizer
             }
         }
 
+        public string ScanInbox()
+        {
+            try
+            {
+                string settingsJson = GetSettings();
+                return Organizer.ScanInbox(settingsJson);
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    status = "error",
+                    message = $"Failed to scan inbox: {ex.Message}",
+                    items = new object[] { }
+                });
+            }
+        }
+
         private static string _scanStatus = "idle";
         private static string _scanMessage = "";
         private static LibraryManager.ScanResult _lastScanResult = null;
@@ -754,11 +772,11 @@ namespace DarjeelingMusicOrganizer
                 var result = new
                 {
                     RootPath = rootPath.Replace("\\", "/"),
-                    RootSize = FormatBytes(rootBytes),
+                    RootSize = LibraryManager.FormatBytes(rootBytes),
                     RootFiles = rootCount.ToString("N0"),
-                    NewSize = FormatBytes(newBytes),
-                    LibrarySize = FormatBytes(libBytes),
-                    BackupsSize = FormatBytes(backBytes)
+                    NewSize = LibraryManager.FormatBytes(newBytes),
+                    LibrarySize = LibraryManager.FormatBytes(libBytes),
+                    BackupsSize = LibraryManager.FormatBytes(backBytes)
                 };
 
                 return JsonSerializer.Serialize(result);
@@ -805,23 +823,7 @@ namespace DarjeelingMusicOrganizer
             catch { return 0; }
         }
 
-        private string FormatBytes(long bytes)
-        {
-            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
-            int counter = 0;
-            decimal number = (decimal)bytes;
-            while (Math.Round(number / 1024) >= 1)
-            {
-                number = number / 1024;
-                counter++;
-            }
-            // Use one decimal place if GB or higher otherwise 0
-            string format = counter >= 3 ? "0.0" : "0"; 
-            //Bytes do not have decimals
-            if (counter == 0) format = "0";
 
-            return string.Format("{0:" + format + "} {1}", number, suffixes[counter]);
-        }
 
         public void OpenInExplorer(string path)
         {

@@ -115,3 +115,40 @@
 .animate-fadeIn {
     animation: fadeIn 0.15s ease-out forwards;
 }
+
+/* Additional custom rules */
+/* UI Action Button & Tree custom rules */
+.ac-btn {
+    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ac-btn:active {
+    transform: scale(0.96);
+}
+
+.cozy-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(136, 201, 161, 0.3);
+    border-color: #88c9a1;
+}
+
+/* Tree Indentation Lines */
+.tree-indent {
+    border-left: 2px dotted #e8e3d3;
+}
+
+/* Tooltips */
+.meta-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    transform: translateY(5px);
+    pointer-events: none;
+    z-index: 50;
+}
+
+.group:hover .meta-tooltip {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+}
